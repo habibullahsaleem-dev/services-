@@ -1,0 +1,39 @@
+parameters:
+  - name: serviceName
+    type: string
+  - name: path
+    type: string
+
+stages:
+- stage: Build_{{ parameters.serviceName }}
+  displayName: Build & Test {{ parameters.serviceName }}
+  jobs:
+  - job: Build
+    displayName: Build {{ parameters.serviceName }}
+    steps:
+    - checkout: self
+
+    # Node.js setup
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.x'
+
+    # Cache npm dependencies
+    - task: Cache@2
+      inputs:
+        key: 'npm | "$(Agent.OS)" | package-lock.json'
+        path: $(Pipeline.Workspace)/.npm
+
+    # Install & Test
+    - script: |
+        cd ${{ parameters.path }}
+        npm install
+        npm test
+      displayName: 'Install & Test Node'
+
+    # Build Docker image
+    - script: |
+        cd ${{ parameters.path }}
+        docker build -t inventoryservice:$(Build.BuildId) .
+      displayName: 'Build Docker Image'
+
