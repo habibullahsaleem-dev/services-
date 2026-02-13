@@ -60,22 +60,3 @@ stages:
     - publish: InventoryService
       artifact: InventoryService_$(Build.BuildId)
 
-# 5️⃣ Promote to Staging
-- stage: Promote_To_Staging
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  jobs:
-  - deployment: StagingDeploy
-    environment: 'Staging'  # Azure DevOps environment
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: AzureKeyVault@2
-            inputs:
-              azureSubscription: '<YOUR SERVICE CONNECTION>'
-              KeyVaultName: '<YOUR KEY VAULT>'
-              SecretsFilter: '*'
-              RunAsPreJob: true
-          - script: |
-              echo "Deploying InventoryService using secrets from Key Vault..."
-
