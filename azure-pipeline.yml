@@ -19,8 +19,10 @@ stages:
 
 # 1️⃣ Detect changes
 - stage: Detect_Changes
+  displayName: 'Detect Changes Stage'
   jobs:
   - job: Detect
+    displayName: 'Detect Changed Services'
     steps:
     - checkout: self
     - script: |
@@ -31,32 +33,53 @@ stages:
           CHANGED="InventoryService"
         fi
         echo "##vso[task.setvariable variable=CHANGED_SERVICES]$CHANGED"
-      displayName: 'Detect Changed Services'
+      displayName: 'Detect Changed Services Script'
 
 # 2️⃣ Build & Test
-- ${{ if contains(variables['CHANGED_SERVICES'], 'InventoryService') }}:
-  - template: templates/build-template.yml
-    parameters:
-      serviceName: InventoryService
-      path: InventoryService
+- stage: Build_Test
+  displayName: 'Build & Test Stage'
+  dependsOn: Detect_Changes
+  condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
+  jobs:
+  - job: BuildInventory
+    displayName: 'Build InventoryService'
+    steps:
+    - checkout: self
+    - script: |
+        echo "Building InventoryService..."
+        cd InventoryService
+        npm install
+        echo "Running simple test..."
+        node index.js
+      displayName: 'Build and Run InventoryService'
 
 # 3️⃣ Security Scan
 - stage: Security_Scan
+  displayName: 'Security Scan Stage'
+  dependsOn: Build_Test
   condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
   jobs:
   - job: NodeScan
+    displayName: 'Node.js Security Scan'
     steps:
+    - checkout: self
     - script: |
         cd InventoryService
+        npm install
         npm audit --audit-level=high
-      displayName: 'Node.js Security Scan'
+      displayName: 'Run npm audit'
 
 # 4️⃣ Publish Artifact
 - stage: Publish_Artifact
+  displayName: 'Publish Artifact Stage'
+  dependsOn: Security_Scan
   condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
   jobs:
   - job: Publish
+    displayName: 'Publish InventoryService Artifact'
     steps:
+    - checkout: self
     - publish: InventoryService
       artifact: InventoryService_$(Build.BuildId)
+      displayName: 'Publish InventoryService'
 
