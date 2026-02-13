@@ -10,7 +10,7 @@ pr:
       - master
       - dev
 
-name: SR-$(Date:yyyyMMdd)$(Rev:.r)  # Custom build number
+name: SR-$(Date:yyyyMMdd)$(Rev:.r)
 
 variables:
   CHANGED_SERVICES: ''
@@ -25,7 +25,7 @@ stages:
     - checkout: self
     - script: |
         echo "Detecting changes for InventoryService..."
-        git fetch origin master
+        git fetch origin master:refs/remotes/origin/master
         CHANGED=""
         if git diff --name-only HEAD origin/master | grep -q '^InventoryService/'; then
           CHANGED="InventoryService"
