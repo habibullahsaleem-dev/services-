@@ -12,74 +12,87 @@ pr:
 
 name: SR-$(Date:yyyyMMdd)$(Rev:.r)
 
-variables:
-  CHANGED_SERVICES: ''
+pool:
+  vmImage: ubuntu-latest
 
 stages:
 
-# 1️⃣ Detect changes
+# =============================
+# 1️⃣ Detect Changes Stage
+# =============================
 - stage: Detect_Changes
-  displayName: 'Detect Changes Stage'
+  displayName: Detect Changes
   jobs:
   - job: Detect
-    displayName: 'Detect Changed Services'
+    displayName: Detect Changed Services
     steps:
     - checkout: self
-    - script: |
-        echo "Detecting changes for InventoryService..."
-        git fetch origin master:refs/remotes/origin/master
-        CHANGED=""
-        if git diff --name-only HEAD origin/master | grep -q '^InventoryService/'; then
-          CHANGED="InventoryService"
-        fi
-        echo "##vso[task.setvariable variable=CHANGED_SERVICES]$CHANGED"
-      displayName: 'Detect Changed Services Script'
+      fetchDepth: 0
 
-# 2️⃣ Build & Test
-- stage: Build_Test
-  displayName: 'Build & Test Stage'
+    - script: |
+        echo "Checking changes in InventoryService..."
+        CHANGED=""
+        if git diff --name-only HEAD~1 HEAD | grep -q '^InventoryService/'; then
+          CHANGED="true"
+        else
+          CHANGED="false"
+        fi
+
+        echo "Changed: $CHANGED"
+        echo "##vso[task.setvariable variable=InventoryChanged;isOutput=true]$CHANGED"
+      name: SetOutput
+
+# =============================
+# 2️⃣ Build Stage
+# =============================
+- stage: Build_Inventory
+  displayName: Build InventoryService
   dependsOn: Detect_Changes
-  condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
+  condition: eq(dependencies.Detect_Changes.outputs['Detect.SetOutput.InventoryChanged'], 'true')
   jobs:
-  - job: BuildInventory
-    displayName: 'Build InventoryService'
+  - job: Build
     steps:
     - checkout: self
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.x'
+
     - script: |
-        echo "Building InventoryService..."
         cd InventoryService
         npm install
-        echo "Running simple test..."
         node index.js
-      displayName: 'Build and Run InventoryService'
+      displayName: Install & Run
 
+# =============================
 # 3️⃣ Security Scan
+# =============================
 - stage: Security_Scan
-  displayName: 'Security Scan Stage'
-  dependsOn: Build_Test
-  condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
+  displayName: Security Scan
+  dependsOn: Build_Inventory
+  condition: eq(dependencies.Detect_Changes.outputs['Detect.SetOutput.InventoryChanged'], 'true')
   jobs:
-  - job: NodeScan
-    displayName: 'Node.js Security Scan'
+  - job: Scan
     steps:
     - checkout: self
     - script: |
         cd InventoryService
         npm install
         npm audit --audit-level=high
-      displayName: 'Run npm audit'
+      displayName: npm audit
 
+# =============================
 # 4️⃣ Publish Artifact
+# =============================
 - stage: Publish_Artifact
-  displayName: 'Publish Artifact Stage'
+  displayName: Publish Artifact
   dependsOn: Security_Scan
-  condition: contains(variables['CHANGED_SERVICES'], 'InventoryService')
+  condition: eq(dependencies.Detect_Changes.outputs['Detect.SetOutput.InventoryChanged'], 'true')
   jobs:
   - job: Publish
-    displayName: 'Publish InventoryService Artifact'
     steps:
     - checkout: self
     - publish: InventoryService
       artifact: InventoryService_$(Build.BuildId)
-      displayName: 'Publish InventoryService'
+
 
